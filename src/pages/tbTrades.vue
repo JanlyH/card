@@ -9,23 +9,15 @@
             </ul>
         </tips>
         <el-tabs v-model="activeTab" @tab-click="tabChange">
-            <el-form inline label-position="right" label-width="100px">
-                <el-form-item label="单号查询：">
-                    <el-input
-                        placeholder="请输入订单号快捷搜索"
-                        icon="search"
-                        @keyup.native.enter="search"
-                        :on-icon-click="search"
-                        v-model="tid">
-                    </el-input>
-                </el-form-item>
-            </el-form>
             <el-tab-pane label="待付款订单" name="WAIT_BUYER_PAY">
                 <trades-list
                     :items="WAIT_BUYER_PAY.items"
                     :page-no="WAIT_BUYER_PAY.pageNo"
                     type="tb"
+                    :from-tag="1"
+                    :loading="loading"
                     @page-change="pageChange"
+                    @search="search"
                     :total-count="WAIT_BUYER_PAY.totalCount">
                 </trades-list>
             </el-tab-pane>
@@ -34,7 +26,10 @@
                     :items="WAIT_SELLER_SEND_GOODS.items"
                     :page-no="WAIT_SELLER_SEND_GOODS.pageNo"
                     type="tb"
+                    :from-tag="1"
+                    :loading="loading"
                     @page-change="pageChange"
+                    @search="search"
                     :total-count="WAIT_SELLER_SEND_GOODS.totalCount">
                 </trades-list>
             </el-tab-pane>
@@ -43,7 +38,10 @@
                     :items="WAIT_BUYER_CONFIRM_GOODS.items"
                     :page-no="WAIT_BUYER_CONFIRM_GOODS.pageNo"
                     type="tb"
+                    :from-tag="1"
+                    :loading="loading"
                     @page-change="pageChange"
+                    @search="search"
                     :total-count="WAIT_BUYER_CONFIRM_GOODS.totalCount">
                 </trades-list>
             </el-tab-pane>
@@ -52,8 +50,27 @@
                     :items="TRADE_FINISHED.items"
                     :page-no="TRADE_FINISHED.pageNo"
                     type="tb"
+                    :from-tag="1"
+                    :loading="loading"
                     @page-change="pageChange"
+                    @search="search"
                     :total-count="TRADE_FINISHED.totalCount">
+                </trades-list>
+            </el-tab-pane>
+            <el-tab-pane label="话卡跟踪" name="TRADE_FOLLOW">
+                <trades-list
+                    :items="TRADE_FOLLOW.items"
+                    :page-no="TRADE_FOLLOW.pageNo"
+                    type="tb"
+                    show-status
+                    :from-tag="3"
+                    :loading="loading"
+                    :status-list-from-follow="statusList"
+                    @page-change="pageChange"
+                    @search="search"
+                    @time-change="timeChange"
+                    @status-change="statusChange"
+                    :total-count="TRADE_FOLLOW.totalCount">
                 </trades-list>
             </el-tab-pane>
         </el-tabs>
@@ -61,7 +78,7 @@
 </template>
 
 <script>
-import {Tabs, TabPane, Form, FormItem, DatePicker, Button, Input, Select, Option, Menu, MenuItem, Row, Col} from 'element-ui'
+import {Tabs, TabPane} from 'element-ui'
 import tips from 'src/components/common/tips'
 import pageHead from 'src/components/common/pageHead'
 import tradesList from 'src/components/common/tradesList'
@@ -71,7 +88,9 @@ export default {
     data () {
         return {
             activeTab: 'WAIT_BUYER_PAY',
-            activeStatus: '',
+            loading: false,
+            orderStatus: '',
+            statusList: {},
             tradeStatus: [
                 {
                     value: 1,
@@ -96,7 +115,7 @@ export default {
             //  时间范围
             time: [],
             //  搜索内容
-            tid: '',
+            searchContent: '',
             //  待付款订单
             WAIT_BUYER_PAY: {
                 items: [],
@@ -124,6 +143,13 @@ export default {
                 pageNo: 1,
                 totalCount: 10,
                 selection: []
+            },
+            //  话卡跟踪
+            TRADE_FOLLOW: {
+                items: [],
+                pageNo: 1,
+                totalCount: 10,
+                selection: []
             }
         }
     },
@@ -132,23 +158,59 @@ export default {
     },
     computed: {
         postData () {
-            return {
-                tid: this.tid,
+            let data = {
                 status: this.activeTab,
                 pageNo: this[this.activeTab].pageNo,
                 pageSize: 10,
-                fromTag: 1
+                fromTag: 1,
+                buyerNick: '',
+                receivePhone: '',
+                tid: this.searchContent
             }
+            if (this.activeTab === 'TRADE_FOLLOW') {
+                data.status = ''
+                data.fromTag = 3
+                data.orderStatus = this.orderStatus === 0 ? '' : this.orderStatus
+                if (this.orderStatus === 4) {
+                    data.enabledStartTime = this.time[0] || ''
+                    data.enabledEndTime = this.time[1] || ''
+                }
+            }
+            return data
         }
     },
     methods: {
         getItems () {
+            this.loading = true
             axios.post('/tradeList.post', this.postData)
             .then(res => {
                 if (res.data.status === 1) {
+                    this.loading = false
                     let data = res.data.data
                     let target = this[this.activeTab]
-                    target.items = data.tradeList || []
+                    let list = data.tradeList
+                    if (this.activeTab === 'TRADE_FOLLOW') {
+                        list.forEach((item, index) => {
+                            let bbtTrade = data.bbtTradeList[index]
+                            this.$set(this.statusList, bbtTrade.tid, bbtTrade || {orderStatus: 0})
+                            let status
+                            if (+bbtTrade.orderStatus === 0) {
+                                status = 0
+                            } else if (+bbtTrade.orderStatus === 5 || +bbtTrade.orderStatus === 1) {
+                                status = 1
+                            } else if (+bbtTrade.orderStatus === 2) {
+                                status = 2
+                            } else if (+bbtTrade.orderStatus === 6 || +bbtTrade.orderStatus === 3) {
+                                status = 3
+                            } else if (+bbtTrade.orderStatus === 4) {
+                                status = 4
+                            } else {
+                                status = 0
+                            }
+                            this.$set(this.statusList[bbtTrade.tid], 'activeStep', status)
+                        })
+                    }
+                    target.items = list || []
                     target.totalCount = data.totalCount
                 }
             })
@@ -163,25 +225,24 @@ export default {
         },
         pageChange (pageNo) {
             this[this.activeTab].pageNo = pageNo
+            this.getItems()
         },
-        search () {
+        search (val) {
+            this.searchContent = val
+            this.getItems()
+        },
+        timeChange (val) {
+            this.time = val.split(' - ')
+            this.getItems()
+        },
+        statusChange (val) {
+            this.orderStatus = val
             this.getItems()
         }
     },
     components: {
-        [Form.name]: Form,
-        [FormItem.name]: FormItem,
-        [DatePicker.name]: DatePicker,
-        [Button.name]: Button,
-        [Input.name]: Input,
         [Tabs.name]: Tabs,
         [TabPane.name]: TabPane,
-        [Select.name]: Select,
-        [Option.name]: Option,
-        [Menu.name]: Menu,
-        [MenuItem.name]: MenuItem,
-        [Row.name]: Row,
-        [Col.name]: Col,
         tips,
         pageHead,
         tradesList

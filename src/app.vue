@@ -1,13 +1,6 @@
 <template>
-    <div id="app">
+    <div id="bbtCard">
         <div class="trades-cont">
-            <div class="menu">
-                <el-menu default-active="/customize" router>
-                    <el-menu-item index="/">淘宝订单关联</el-menu-item>
-                    <el-menu-item index="/customize">自定义发卡</el-menu-item>
-                    <el-menu-item index="/follow">话卡跟踪激活</el-menu-item>
-                </el-menu>
-            </div>
             <div class="trades-detailes">
                 <router-view></router-view>
             </div>
@@ -16,24 +9,19 @@
 </template>
 
 <script>
-import {Menu, MenuItem, Row, Col} from 'element-ui'
 export default {
-    name: 'app',
-    components: {
-        [Menu.name]: Menu,
-        [MenuItem.name]: MenuItem,
-        [Row.name]: Row,
-        [Col.name]: Col
-    }
+    name: 'app'
 }
 </script>
 
 <style lang="scss">
 @import "assets/css/reset.css";
 .trades-cont{
-    width: 1200px;
+    box-sizing: border-box;
+    background-color: #fff;
+    width: 1000px;
     margin: 0 auto;
-    padding: 20px 0;
+    padding: 20px 10px;
     &:after, &:before{
         content: '';
         display: table;
@@ -50,10 +38,5 @@ export default {
             min-height: 500px;
         }
     }
-}
-.trades-detailes{
-    box-sizing: border-box;
-    float: left;
-    width: 1000px;
 }
 </style>

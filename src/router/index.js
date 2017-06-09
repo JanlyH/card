@@ -3,28 +3,21 @@ import Router from 'vue-router'
 
 Vue.use(Router)
 export default new Router({
+    mode: 'history',
     routes: [
         //  淘宝订单
         {
-            path: '/',
+            path: '/card/tbTrades',
             component: r => {
-                require.ensure([], () => r(require('src/pages/tbTrades')))
+                require.ensure([], () => r(require('src/pages/tbTrades')), 'card')
             }
         },
 
         //  自定义订单
         {
-            path: '/customize',
+            path: '/card/customizeTrades',
             component: r => {
-                require.ensure([], () => r(require('src/pages/customizeTrades')))
-            }
-        },
-
-        //  订单跟踪
-        {
-            path: '/follow',
-            component: r => {
-                require.ensure([], () => r(require('src/pages/followTrades')))
+                require.ensure([], () => r(require('src/pages/customizeTrades')), 'card')
             }
         }
     ]

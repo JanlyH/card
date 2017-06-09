@@ -1,6 +1,6 @@
 <template>
     <div class="customize-trades">
-        <page-head position="权益中心-宝贝团话卡合作"></page-head>
+        <page-head position="权益中心-自定义发卡"></page-head>
         <tips>
             <ul>
                 <li>通过线下渠道、站外渠道或一笔订单中需要发放多张话卡的，请在本页面添加新的话卡订单，填写必要信息后，复制开卡链接给消费者；</li>
@@ -8,35 +8,19 @@
             </ul>
         </tips>
         <el-tabs v-model="activeTab" @tab-click="tabChange">
-            <el-form inline label-position="right" label-width="100px" v-if="activeTab === '1'">
-                <el-form-item label="订单状态：">
-                    <el-select v-model="activeStatus" placeholder="请选择状态">
-                        <el-option v-for="(item, index) in tradeStatus" :label="item.label" :value="item.value" :key="item.value"></el-option>
-                    </el-select>
-                </el-form-item>
-                <el-form-item label="激活失败：" v-if="activeStatus === 4">
-                    <el-date-picker
-                        v-model="time"
-                        type="datetimerange"
-                        placeholder="选择时间范围">
-                    </el-date-picker>
-                </el-form-item>
-                <el-form-item label="单号查询：">
-                    <el-input
-                        placeholder="请输入订单号快捷搜索"
-                        icon="search"
-                        @keyup.native.enter="search"
-                        :on-icon-click="search"
-                        v-model="tid">
-                    </el-input>
-                </el-form-item>
-            </el-form>
             <el-tab-pane label="管理我的订单" name="1">
                 <trades-list
                     :items="items"
                     :page-no="pageNo"
+                    show-status
                     type="customize"
+                    :from-tag="2"
+                    :loading="loading"
                     @page-change="pageChange"
+                    @del-order="delOrder"
+                    @search="search"
+                    @status-change="statusChange"
+                    @time-change="timeChange"
                     :total-count="totalCount">
                 </trades-list>
             </el-tab-pane>
@@ -74,7 +58,7 @@
                             </el-row>
                         </el-form-item>
                         <el-form-item label="收货地址：">
-                            <citys :province="newTrade.address.province" :city="newTrade.address.city" :detail="newTrade.address.detail" @change="addressChange"></citys>
+                            <citys @change="addressChange" ref="address"></citys>
                         </el-form-item>
                         <el-form-item label="收货地址：">
                             <el-tabs type="card">
@@ -116,7 +100,7 @@
                         </el-form-item>
                     </el-form>
                     <div style="text-align: center;">
-                        <el-button type="primary">确定并提交</el-button>
+                        <el-button type="primary" @click="submit">确定并提交</el-button>
                     </div>
                 </div>
             </el-tab-pane>
@@ -125,7 +109,7 @@
 </template>
 
 <script>
-import {Tabs, TabPane, Form, FormItem, DatePicker, Button, Input, Select, Option, Menu, MenuItem, Row, Col, Table, TableColumn, Checkbox} from 'element-ui'
+import {Tabs, TabPane, Form, FormItem, DatePicker, Button, Input, Select, Option, Row, Col, Table, TableColumn, Checkbox, Message} from 'element-ui'
 import tips from 'src/components/common/tips'
 import pageHead from 'src/components/common/pageHead'
 import tradesList from 'src/components/common/tradesList'
@@ -135,47 +119,20 @@ export default {
     name: 'customizeTrades',
     data () {
         return {
-            activeTab: '2',
-            activeStatus: '',
-            tradeStatus: [
-                {
-                    value: 1,
-                    label: '开卡信息已提交'
-                }, {
-                    value: 2,
-                    label: '开卡信息审核通过'
-                }, {
-                    value: 5,
-                    label: '开卡信息审核失败'
-                }, {
-                    value: 3,
-                    label: '话卡已发货'
-                }, {
-                    value: 4,
-                    label: '话卡已激活'
-                }, {
-                    value: 6,
-                    label: '话卡激活失败'
-                }
-            ],
-            //  时间范围
-            time: [],
-            //  搜索内容
-            tid: '',
+            activeTab: '1',
+            loading: false,
             //  待付款订单
             items: [],
             pageNo: 1,
             totalCount: 10,
             selection: [],
+            searchContent: '',
+            orderStatus: 0,
             newTrade: {
                 nick: '',
                 name: '',
                 phoneNo: '',
-                address: {
-                    province: '',
-                    city: '',
-                    detail: ''
-                }
+                address: ''
             },
             rules: {
                 name: [
@@ -224,21 +181,34 @@ export default {
     },
     computed: {
         postData () {
-            return {
-                tid: this.tid,
+            let data = {
+                orderStatus: this.orderStatus === 0 ? '' : this.orderStatus,
                 pageNo: this.pageNo,
                 pageSize: 10,
-                fromTag: 2
+                fromTag: 2,
+                tid: '',
+                buyerNick: '',
+                receivePhone: ''
             }
+            if (this.searchContent.indexOf('BBT') > -1) {
+                data.tid = this.searchContent
+            } else if (/^1(3|4|5|7|8)[0-9]\d{8}$/.test(this.searchContent)) {
+                data.receivePhone = this.searchContent
+            } else {
+                data.buyerNick = this.searchContent
+            }
+            return data
         }
     },
     methods: {
         getItems () {
+            this.loading = true
             axios.post('/tradeList.post', this.postData)
             .then(res => {
                 if (res.data.status === 1) {
+                    this.loading = false
                     let data = res.data.data
-                    this.items = data.tradeList || []
+                    this.items = data.bbtTradeList || []
                     this.totalCount = data.totalCount
                 }
             })
@@ -251,12 +221,61 @@ export default {
         },
         pageChange (pageNo) {
             this[this.activeTab].pageNo = pageNo
-        },
-        search () {
             this.getItems()
         },
-        addressChange (val) {
-            console.log(val)
+        search (val) {
+            this.searchContent = val
+            this.getItems()
+        },
+        addressChange (address) {
+            this.newTrade.address = address
+        },
+        submit () {
+            console.log(this.$refs.address.getValidateResult())
+            this.$refs.address.$refs.form.validate(addressValid => {
+                this.$refs.newTrade.validate(tradeValid => {
+                    if (addressValid && tradeValid) {
+                        let postData = {
+                            tariffId: 'OPPO123',
+                            ywbId: '',
+                            receiveAddress: this.newTrade.address,
+                            receivePhone: this.newTrade.phoneNo,
+                            receiveName: this.newTrade.name,
+                            buyerNick: this.newTrade.nick
+                        }
+                        axios.post('/createOrder.post', postData)
+                        .then(res => {
+                            if (+res.data.status === 1) {
+                                Message.success({
+                                    showClose: true,
+                                    message: '创建成功'
+                                })
+                                // this.activeTab = '1'
+                                this.getItems()
+                            } else {
+                                Message.error({
+                                    showClose: true,
+                                    message: res.data.message
+                                })
+                            }
+                        })
+                        .catch(err => {
+                            console.log(err)
+                        })
+                    }
+                })
+            })
+        },
+        delOrder () {
+            this.getItems()
+        },
+        timeChange (val) {
+            this.time = val.split(' - ')
+            this.getItems()
+        },
+        statusChange (val) {
+            this.orderStatus = val
+            this.getItems()
         }
     },
     components: {
@@ -269,8 +288,6 @@ export default {
         [TabPane.name]: TabPane,
         [Select.name]: Select,
         [Option.name]: Option,
-        [Menu.name]: Menu,
-        [MenuItem.name]: MenuItem,
         [Row.name]: Row,
         [Col.name]: Col,
         [Table.name]: Table,

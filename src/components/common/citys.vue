@@ -2,32 +2,32 @@
     <el-form :model='form' :rules='rules' ref='form' label-position='top'>
         <el-row class='address'>
             <el-col :span='4'>
-                <el-form-item prop='province'>
-                    <el-select v-model='form.province' placeholder='请选择输入省' @change='proChange'>
-                        <el-option v-for='item in provinces' :key='item.value' :value='item.value'>
+                <el-form-item prop='province.name'>
+                    <el-select v-model='form.province.name' placeholder='请选择省' @change='proChange'>
+                        <el-option v-for='item in provinces' :key='item.code' :value='item.name'>
                         </el-option>
                     </el-select>
                 </el-form-item>
             </el-col>
             <el-col :span='4'>
-                <el-form-item prop='city'>
-                    <el-select v-model='form.city' placeholder='请选择输入市' @change='cityChange'>
-                        <el-option v-for='item in citys' :key='item.value' :value='item.value'>
+                <el-form-item prop='city.name'>
+                    <el-select v-model='form.city.name' placeholder='请选择市' @change='cityChange'>
+                        <el-option v-for='item in citys' :key='item.code' :value='item.name'>
                         </el-option>
                     </el-select>
                 </el-form-item>
             </el-col>
             <el-col :span='4'>
-                <el-form-item prop='city'>
-                    <el-select v-model='form.county' placeholder='请选择输入市' @change='countyChange'>
-                        <el-option v-for='item in county' :key='item' :value='item'>
+                <el-form-item prop='area.name'>
+                    <el-select v-model='form.area.name' placeholder='请选择县/区' @change='areaChange'>
+                        <el-option v-for='item in areas' :key='item.code' :value='item.name'>
                         </el-option>
                     </el-select>
                 </el-form-item>
             </el-col>
             <el-col :span='12'>
                 <el-form-item prop='detail'>
-                    <el-input placeholder='请填写详细地址' :number='true' v-model='form.detail'>
+                    <el-input placeholder='请填写详细地址' :number='true' v-model='form.detail' @blur="detailChange">
                     </el-input>
                 </el-form-item>
             </el-col>
@@ -36,64 +36,71 @@
 </template>
 <script>
 import {Form, FormItem, Row, Col, Select, Option, Input} from 'element-ui'
-import citys from 'src/assets/js/citys'
-function formatData (data) {
-    var result = []
-    for (var key in data) {
-        result.push({
-            value: key
-        })
-    }
-    return result
-}
+import citys from 'src/assets/js/citys.json'
 export default {
     name: 'address',
-    props: ['province', 'city', 'detail'],
     data () {
         return {
             rules: {
                 province: [{ required: true, message: '请选择省份', trigger: 'change' }],
                 city: [{ required: true, message: '请选择城市', trigger: 'change' }],
-                county: [{ required: true, message: '请选择悬/区', trigger: 'change' }],
+                area: [{ required: true, message: '请选择悬/区', trigger: 'change' }],
                 detail: [{ required: true, message: '请填写详细地址', trigger: 'change' }]
             },
             form: {
-                province: this.province,
-                city: this.city,
-                county: this.county,
-                detail: this.detail
+                province: {
+                    code: '',
+                    name: ''
+                },
+                city: {
+                    code: '',
+                    name: ''
+                },
+                area: {
+                    code: '',
+                    name: ''
+                },
+                detail: ''
             },
-            provinces: formatData(citys),
-            county: []
+            provinces: citys,
+            citys: [],
+            areas: []
         }
     },
     computed: {
-        citys () {
-            return formatData(citys[this.form.province])
+        address () {
+            return `${this.form.province.name}${this.form.city.name}${this.form.area.name}${this.form.detail}`
         }
     },
     methods: {
-        proChange (val, oldVal) {
-            if (oldVal) {
-                this.form.city = ''
-                this.form.detail = ''
-            }
-            var data = formatData(citys[this.form.province])
-            for (var i = 0; i < data.length; i++) {
-                this.$set(this.citys, i, data[i])
-            }
-            this.cityChange(this.citys[0].value)
-            this.form.city = this.citys[0].value
+        proChange (val) {
+            let activeProvince = citys.filter(item => {
+                return item.name === val
+            })[0]
+            this.citys = activeProvince.children
+            this.form.province.code = activeProvince.code
+            this.form.province.name = activeProvince.name
+            this.form.city.code = this.citys[0].code
+            this.form.city.name = this.citys[0].name
+            this.form.area.code = this.citys[0].children[0].code
+            this.form.area.name = this.citys[0].children[0].name
+            this.$emit('change', this.address)
         },
-        cityChange (val, oldVal) {
-            this.county = citys[this.form.province][val]
-            this.form.county = this.county[0]
+        cityChange (val) {
+            this.areas = this.citys.filter(item => {
+                return item.name === val
+            })[0].children
+            this.form.area.code = this.areas[0].code
+            this.form.area.name = this.areas[0].name
+            this.$emit('change', this.address)
         },
-        detailChange (val) {
-            console.log(val)
+        detailChange () {
+            this.$emit('change', this.address)
+            console.log(this.address)
         },
-        countyChange (val) {
-            this.$emit('change', this.form)
+        areaChange (val) {
+            this.$emit('change', this.address)
+            console.log(this.address)
         },
         getValidateResult () {
             return this.$refs.form.validate(valid => {
